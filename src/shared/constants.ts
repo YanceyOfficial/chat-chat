@@ -1,5 +1,4 @@
 import { SnackbarOrigin } from '@mui/material'
-import { MediaType } from 'src/types/global'
 
 export const EMPTY_CHAT_HINT = 'Create your first conversation!'
 
@@ -14,11 +13,10 @@ export const SNACKBAR_MAX_NUM = 1
 
 export const SNACKBAR_AUTO_HIDE_DURATION = 3000
 
-export const multiMedialConfig = {
-  [MediaType.Image]: { multiple: true, accept: 'image/*' },
-  [MediaType.Audio]: {
-    multiple: false,
-    accept:
-      'audio/mp3,video/mp4,video/mpeg,video/mpea,video/m4a,video/wav,video/webm'
-  }
+export const BRIDGE_NAME = 'electronAPI'
+
+export const IPC_NAMES = {
+  saveFileWithDialog: 'save-file-with-dialog',
+  saveFileToAppDataDir: 'save-file-to-app-data-dir',
+  transformFilenameToSrc: 'transform-filename-to-src'
 }

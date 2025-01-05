@@ -1,20 +1,28 @@
 import { ThemeProvider } from '@mui/material/styles'
+import { useAtomValue } from 'jotai'
 import { SnackbarProvider } from 'notistack'
-import { FC, lazy } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { useOnline, useTheme } from 'src/hooks'
-import { routers } from 'src/routers'
+import { FC } from 'react'
+import Loading from 'src/components/Loading'
+import Sidebar from 'src/components/Sidebar'
+import Conversation from 'src/containers/Conversation'
+import Settings from 'src/containers/Settings'
+import { useInitial, useOnline, useTheme } from 'src/hooks'
 import {
   SNACKBAR_ANCHOR_ORIGIN,
   SNACKBAR_AUTO_HIDE_DURATION,
   SNACKBAR_MAX_NUM
 } from 'src/shared/constants'
-
-const Sidebar = lazy(() => import('src/components/Sidebar'))
+import { configurationAtom } from 'src/stores/conversation'
+import { settingsAtom } from 'src/stores/global'
 
 const Layouts: FC = () => {
+  const configuration = useAtomValue(configurationAtom)
+  const settings = useAtomValue(settingsAtom)
   const { muiTheme } = useTheme()
   useOnline()
+  useInitial()
+
+  if (!configuration || !settings) return <Loading />
 
   return (
     <ThemeProvider theme={muiTheme}>
@@ -29,18 +37,9 @@ const Layouts: FC = () => {
         }}
       >
         <section className="container flex w-screen flex-row overflow-x-hidden dark:bg-gray-800">
-          <BrowserRouter>
-            <Sidebar />
-            <Routes>
-              {routers.map((router) => (
-                <Route
-                  key={router.path}
-                  path={router.path}
-                  element={<router.element />}
-                />
-              ))}
-            </Routes>
-          </BrowserRouter>
+          <Sidebar />
+          <Conversation />
+          <Settings />
         </section>
       </SnackbarProvider>
     </ThemeProvider>

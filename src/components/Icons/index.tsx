@@ -1,6 +1,7 @@
-import AzureLogoIcon from './AzureLogoIcon'
+import AnthropicLogoIcon from './AnthropicLogoIcon'
+import GoogleLogoIcon from './GoogleLogoIcon'
 import LoadingIcon from './LoadingIcon'
-import OpenAILogoIcon from './OpenAILogoIcon'
+import OpenAiLogoIcon from './OpenAiLogoIcon'
 import OutlinePlusIcon from './OutlinePlusIcon'
 import OutlineTranslationIcon from './OutlineTranslationIcon'
 import SolidCloseIcon from './SolidCloseIcon'
@@ -9,13 +10,14 @@ import SolidSettingsBrightnessIcon from './SolidSettingsBrightnessIcon'
 import SolidTranslationIcon from './SolidTranslationIcon'
 
 export {
-  AzureLogoIcon,
   LoadingIcon,
-  OpenAILogoIcon,
+  OpenAiLogoIcon,
   OutlinePlusIcon,
   OutlineTranslationIcon,
   SolidCloseIcon,
   SolidSendIcon,
   SolidSettingsBrightnessIcon,
-  SolidTranslationIcon
+  SolidTranslationIcon,
+  AnthropicLogoIcon,
+  GoogleLogoIcon
 }

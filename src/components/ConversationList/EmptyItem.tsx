@@ -14,9 +14,7 @@ const EmptyItem: FC<Props> = ({ onClick }) => {
       active
       className="items-center justify-center"
     >
-      <p className="mr-4 font-semibold dark:text-dark-text">
-        {EMPTY_CHAT_HINT}
-      </p>
+      <p className="mr-4 font-bold dark:text-dark-text">{EMPTY_CHAT_HINT}</p>
       <OutlinePlusIcon />
     </ItemWrapper>
   )

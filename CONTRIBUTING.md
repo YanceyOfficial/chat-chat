@@ -4,7 +4,7 @@ Hi! We are really excited that you are interested in contributing to Hyper Chat.
 
 ## Repo Setup
 
-To develop and test the core `Hyper Chat` package, please respect the [Tauri Guide](https://tauri.app/v1/guides/).
+To develop and test the core `Hyper Chat` package, please respect the [Electron Guide](https://www.electronjs.org/) and [Electron Forge Guide](https://www.electronforge.io/).
 
 ## Pull Request Guidelines
 

@@ -46,7 +46,9 @@ export default {
         'dark-bubble-assistant-bg': '#202324',
         'dark-bubble-assistant-text': '#e8e6e3',
         'dark-search-input-border': '#34383a',
-        'dark-divider-bg': '#30363d'
+        'dark-divider-bg': '#30363d',
+        'dark-text-secondary':'#b4b4b4',
+        'dark-text-secondary':'#5d5d5d',
       },
       borderRadius: {
         14: '0.875rem' // 14px

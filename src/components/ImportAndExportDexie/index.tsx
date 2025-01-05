@@ -3,7 +3,6 @@ import {
   DocumentArrowUpIcon
 } from '@heroicons/react/24/outline'
 import Button from '@mui/material/Button'
-import { BaseDirectory, writeTextFile } from '@tauri-apps/plugin-fs'
 import Dexie from 'dexie'
 import { exportDB, importDB } from 'dexie-export-import'
 import { enqueueSnackbar } from 'notistack'
@@ -18,14 +17,22 @@ const ImportAndExportDexie: FC = () => {
       const blob = await exportDB(database)
       const text = await blob.text()
       const filename = `dexie-export-${Date.now()}.json`
-      await writeTextFile(filename, text, {
-        baseDir: BaseDirectory.Download
-      })
 
-      enqueueSnackbar(
-        `The ${filename} has been saved in your local Download Directory.`,
-        { variant: 'success' }
-      )
+      window.electronAPI
+        .saveFileWithDialog({
+          title: `dexie-export-${Date.now()}`,
+          filename: `dexie-export-${Date.now()}`,
+          extension: 'json',
+          text
+        })
+        .then((res) => {
+          if (res.success) {
+            enqueueSnackbar(
+              `The ${filename} has been saved in your local Download Directory.`,
+              { variant: 'success' }
+            )
+          }
+        })
     } catch (e) {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore

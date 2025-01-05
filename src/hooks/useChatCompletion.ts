@@ -1,288 +1,106 @@
-import { ChatRequestMessageUnion } from '@azure/openai'
+import Anthropic, { AnthropicError } from '@anthropic-ai/sdk'
+import { useAtomValue, useSetAtom } from 'jotai'
+import { TiktokenModel } from 'js-tiktoken'
 import { enqueueSnackbar } from 'notistack'
+import configurations from 'src/configurations'
+import { useClients, useStoreMessages } from 'src/hooks'
 import {
-  ChatCompletionChunk,
-  ChatCompletionContentPart,
-  ChatCompletionContentPartImage,
-  ChatCompletionContentPartText,
-  ChatCompletionMessageParam
-} from 'openai/resources'
-import { Stream } from 'openai/streaming'
-import { useRecoilValue, useSetRecoilState } from 'recoil'
-import { ChatConfiguration, models } from 'src/configurations/chatCompletion'
-import { useClients, useSettings, useStoreMessages } from 'src/hooks'
-import { getTokensCount, showRequestErrorToast } from 'src/shared/utils'
-import { currConversationState, loadingState } from 'src/stores/conversation'
+  checkUserPromptTokensCountIsValid,
+  collectOpenAiPrompt,
+  computeContext,
+  getTokensCount,
+  showRequestErrorToast
+} from 'src/shared/utils'
+import { configurationAtom, conversationAtom } from 'src/stores/conversation'
+import { companyAtom, loadingAtom } from 'src/stores/global'
+import {
+  transformContextToAnthropic,
+  transformContextToGoogle,
+  transformContextToOpenAI,
+  transformToAnthropic,
+  transformToGoogle,
+  transformToOpenAI
+} from 'src/transformer'
+import { ContentPart, Roles } from 'src/types/conversation'
 import { Companies } from 'src/types/global'
 
 const useChatCompletion = () => {
-  const { openAiClient, azureClient } = useClients()
-  const currConversation = useRecoilValue(currConversationState)
-  const { settings } = useSettings()
-  const setLoading = useSetRecoilState(loadingState)
+  const { openAiClient, googleClient, anthropicClient } = useClients()
+  const conversation = useAtomValue(conversationAtom)
+  const company = useAtomValue(companyAtom)
+  const configuration = useAtomValue(configurationAtom)
+  const setLoading = useSetAtom(loadingAtom)
   const {
     rollbackMessage,
     saveUserMessage,
     saveAssistantMessage,
     updateChatCompletionStream
   } = useStoreMessages()
+  const { models } = configurations[company]
+  const {
+    model,
+    systemMessage,
+    maxResponse,
+    temperature,
+    topP,
+    frequencyPenalty,
+    presencePenalty,
+    stop,
+    systemMessageTokensCount
+  } = configuration
+  const { maxInput } = models.find((m) => m.modelName === model) ?? {}
 
-  if (!settings || !currConversation) return
+  const createChatCompletionByOpenAI = async (userPrompt: ContentPart) => {
+    const userPromptTokenCount = getTokensCount(
+      collectOpenAiPrompt(userPrompt),
+      model as TiktokenModel
+    )
 
-  const createChatCompletionByAzure = async (
-    userMessage: ChatCompletionContentPart[]
-  ) => {
-    const {
-      model,
-      systemMessage,
-      maxTokens,
-      temperature,
-      topP,
-      frequencyPenalty,
-      presencePenalty,
-      stop,
-      systemMessageTokensCount
-    } = currConversation.configuration as ChatConfiguration
+    checkUserPromptTokensCountIsValid(
+      systemMessageTokensCount,
+      maxInput,
+      userPromptTokenCount
+    )
+    await saveUserMessage(userPrompt, userPromptTokenCount)
 
-    let userMessageText = ''
-    userMessage.forEach((message) => {
-      // TODO: It seems that the image needn't be calculated in the token.
-      // if (message.type === 'image_url') {
-      //   userMessageText += message.imageUrl.url + ' '
-      // }
-
-      if (message.type === 'text') {
-        userMessageText += message.text + ' '
-      }
-    })
-    const userMessageTokensCount = getTokensCount(userMessageText, model)
-
-    let tokensCount =
-      userMessageTokensCount + systemMessageTokensCount + maxTokens
-
-    const tokensLimit = models.find((m) => m.name === model)?.tokensLimit || 0
-    if (tokensCount > tokensLimit) {
-      enqueueSnackbar(
-        `This model's maximum context length is ${tokensLimit} tokens. However, you requested ${tokensCount} tokens (${
-          tokensCount - maxTokens
-        } in the messages, ${maxTokens} in the completion). Please reduce the length of the prompt.`,
-        { variant: 'error' }
-      )
-      return
-    }
-    const context: ChatCompletionMessageParam[] = []
-    currConversation.messages
-      .slice()
-      .reverse()
-      .forEach(({ tokensCount: historyTokensCount, content, role }) => {
-        tokensCount += historyTokensCount
-        if (tokensCount > tokensLimit) return
-        context.unshift({
-          role,
-          // TODO: The size of the image base64 string may be very large;
-          // do not send it to the OpenAI service as context.
-          content: content.filter((item) => item.type === 'text')
-        })
-      })
-
-    await saveUserMessage(userMessage, userMessageTokensCount)
-    setLoading(true)
-
-    const messages: ChatRequestMessageUnion[] = [
-      {
-        role: 'system',
-        content: [{ type: 'text', text: systemMessage }]
-      },
-      ...JSON.parse(JSON.stringify(context)),
-      {
-        role: 'user',
-        content: userMessage.map((item) => {
-          // Fuck Microsoft
-          if (item.type === 'image_url') {
-            return {
-              type: 'image_url',
-              imageUrl: { url: item.image_url.url }
-            }
-          }
-
-          if (item.type === 'text') {
-            return item
-          }
-        })
-      }
-    ]
-
-    const options = {
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      top_p: topP,
-      stop: stop.length > 0 ? stop : undefined,
-      frequency_penalty: frequencyPenalty,
-      presence_penalty: presencePenalty
-    }
+    const contexts = computeContext(
+      maxInput - systemMessageTokensCount - userPromptTokenCount,
+      conversation.messages
+    )
 
     try {
-      const events = await azureClient.streamChatCompletions(
-        settings.azureDeploymentNameChatCompletion,
-        messages,
-        options
-      )
-
-      for await (const event of events) {
-        for (const choice of event.choices) {
-          updateChatCompletionStream(choice.delta?.content || '')
-
-          const filterResults = choice.contentFilterResults
-          if (!filterResults) {
-            continue
+      let assistantText = ''
+      const events = await openAiClient.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: Roles.System,
+            content: systemMessage
+          },
+          ...transformContextToOpenAI(contexts),
+          {
+            role: Roles.User,
+            content: transformToOpenAI(userPrompt)
           }
-          if (filterResults.error) {
-            enqueueSnackbar(
-              `\tContent filter ran into an error ${filterResults.error.code}: ${filterResults.error.message}`,
-              { variant: 'error' }
-            )
-          } else {
-            const { hate, sexual, selfHarm, violence } = filterResults
-
-            if (hate?.filtered) {
-              enqueueSnackbar(
-                `\tHate category is filtered: ${hate?.filtered}, with ${hate?.severity} severity`,
-                { variant: 'error' }
-              )
-            }
-            if (sexual?.filtered) {
-              enqueueSnackbar(
-                `\tSexual category is filtered: ${sexual?.filtered}, with ${sexual?.severity} severity`,
-                { variant: 'error' }
-              )
-            }
-            if (selfHarm?.filtered) {
-              enqueueSnackbar(
-                `\tSelf-harm category is filtered: ${selfHarm?.filtered}, with ${selfHarm?.severity} severity`,
-                { variant: 'error' }
-              )
-            }
-            if (violence?.filtered) {
-              enqueueSnackbar(
-                `\tViolence category is filtered: ${violence?.filtered}, with ${violence?.severity} severity`,
-                { variant: 'error' }
-              )
-            }
-          }
-        }
-      }
-
-      saveAssistantMessage()
-    } catch (e) {
-      showRequestErrorToast(e)
-      rollbackMessage()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const createChatCompletionByOpenAI = async (
-    userMessage: (
-      | ChatCompletionContentPartText
-      | ChatCompletionContentPartImage
-    )[]
-  ) => {
-    const {
-      model,
-      systemMessage,
-      maxTokens,
-      temperature,
-      topP,
-      frequencyPenalty,
-      presencePenalty,
-      stop,
-      systemMessageTokensCount
-    } = currConversation.configuration as ChatConfiguration
-    let userMessageText = ''
-    userMessage.forEach((message) => {
-      // TODO: It seems that the image needn't be calculated in the token.
-      // if (message.type === 'image_url') {
-      //   userMessageText += message.imageUrl.url + ' '
-      // }
-
-      if (message.type === 'text') {
-        userMessageText += message.text + ' '
-      }
-    })
-    const userMessageTokensCount = getTokensCount(userMessageText, model)
-
-    let tokensCount =
-      userMessageTokensCount + systemMessageTokensCount + maxTokens
-
-    const tokensLimit = models.find((m) => m.name === model)?.tokensLimit || 0
-    if (tokensCount > tokensLimit) {
-      enqueueSnackbar(
-        `This model's maximum context length is ${tokensLimit} tokens. However, you requested ${tokensCount} tokens (${
-          tokensCount - maxTokens
-        } in the messages, ${maxTokens} in the completion). Please reduce the length of the prompt.`,
-        { variant: 'error' }
-      )
-      return
-    }
-    const context: ChatCompletionMessageParam[] = []
-    currConversation.messages
-      .slice()
-      .reverse()
-      .forEach(({ tokensCount: historyTokensCount, content, role }) => {
-        tokensCount += historyTokensCount
-        if (tokensCount > tokensLimit) return
-        context.unshift({
-          role,
-          // TODO: The size of the image base64 string may be very large; do not add it to the context.
-          content: content.filter((item) => item.type === 'text')
-        } as ChatCompletionMessageParam)
-      })
-
-    await saveUserMessage(userMessage, userMessageTokensCount)
-    setLoading(true)
-
-    const messages: ChatCompletionMessageParam[] = [
-      {
-        role: 'system',
-        content: [{ type: 'text', text: systemMessage }]
-      },
-      ...JSON.parse(JSON.stringify(context)),
-      {
-        role: 'user',
-        content: userMessage.map((item) => {
-          if (item.type === 'image_url') {
-            return { type: item.type, image_url: item.image_url }
-          }
-
-          if (item.type === 'text') {
-            return item
-          }
-        })
-      }
-    ]
-
-    const options = {
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      top_p: topP,
-      stop: stop.length > 0 ? stop : undefined,
-      frequency_penalty: frequencyPenalty,
-      presence_penalty: presencePenalty
-    }
-
-    try {
-      const events = (await openAiClient.chat.completions.create({
-        messages,
-        ...options,
+        ],
+        max_completion_tokens: maxResponse,
+        temperature,
+        top_p: topP,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+        stop,
         stream: true
-      })) as unknown as Stream<ChatCompletionChunk>
+      })
 
       if (events)
         for await (const event of events) {
           for (const choice of event.choices) {
-            updateChatCompletionStream(choice.delta?.content || '')
+            const { content } = choice.delta
+
+            if (content) {
+              assistantText += content
+              updateChatCompletionStream(content)
+            }
 
             if (choice.delta.refusal) {
               continue
@@ -293,7 +111,11 @@ const useChatCompletion = () => {
           }
         }
 
-      saveAssistantMessage()
+      const assistantMessageTokenCount = getTokensCount(
+        assistantText,
+        model as TiktokenModel
+      )
+      saveAssistantMessage(assistantMessageTokenCount)
     } catch (e) {
       showRequestErrorToast(e)
     } finally {
@@ -301,12 +123,107 @@ const useChatCompletion = () => {
     }
   }
 
-  const services = {
-    [Companies.Azure]: createChatCompletionByAzure,
-    [Companies.OpenAI]: createChatCompletionByOpenAI
+  const createChatCompletionByGoogle = async (userPrompt: ContentPart) => {
+    const generativeModel = googleClient.getGenerativeModel({
+      model,
+      systemInstruction: systemMessage,
+      generationConfig: {
+        stopSequences: stop,
+        maxOutputTokens: maxResponse,
+        temperature,
+        topP,
+        frequencyPenalty,
+        presencePenalty
+      }
+    })
+
+    const { parts } = transformToGoogle(Roles.User, userPrompt)
+    const { totalTokens: userPromptTokenCount } =
+      await generativeModel.countTokens(parts)
+
+    checkUserPromptTokensCountIsValid(
+      systemMessageTokensCount,
+      maxInput,
+      userPromptTokenCount
+    )
+    await saveUserMessage(userPrompt, userPromptTokenCount)
+
+    const contexts = computeContext(
+      maxInput - systemMessageTokensCount - userPromptTokenCount,
+      conversation.messages
+    )
+
+    let assistantMessageTokenCount = 0
+    const chat = generativeModel.startChat({
+      history: transformContextToGoogle(contexts)
+    })
+    const { stream } = await chat.sendMessageStream(parts)
+    for await (const chunk of stream) {
+      const chunkText = chunk.text()
+      updateChatCompletionStream(chunkText)
+
+      const { candidatesTokenCount } = chunk.usageMetadata
+      if (candidatesTokenCount) {
+        assistantMessageTokenCount = candidatesTokenCount
+      }
+    }
+
+    saveAssistantMessage(assistantMessageTokenCount)
   }
 
-  return services[settings.company]
+  const createChatCompletionByAnthropic = async (userMessage: ContentPart) => {
+    const userPrompt = {
+      role: Roles.User as 'user' | 'assistant',
+      content: transformToAnthropic(userMessage)
+    }
+
+    const { input_tokens: userPromptTokenCount } =
+      await anthropicClient.beta.messages.countTokens({
+        model,
+        messages: [userPrompt]
+      })
+    await saveUserMessage(userMessage, userPromptTokenCount)
+
+    const contexts = computeContext(
+      maxInput - systemMessageTokensCount - userPromptTokenCount,
+      conversation.messages
+    )
+
+    anthropicClient.messages
+      .stream({
+        model,
+        system: systemMessage,
+        max_tokens: maxResponse,
+        temperature,
+        top_p: topP,
+        stop_sequences: stop,
+        messages: [...transformContextToAnthropic(contexts), userPrompt]
+      })
+      .on('text', (textDelta) => {
+        updateChatCompletionStream(textDelta || '')
+      })
+      .on('finalMessage', (message) => {
+        const { usage } = message
+        saveAssistantMessage(usage.output_tokens)
+      })
+      .on('error', (error: AnthropicError) => {
+        if (error instanceof Anthropic.APIError) {
+          enqueueSnackbar(`[${error.status}] ${error.message}`, {
+            variant: 'error'
+          })
+        } else {
+          throw error
+        }
+      })
+  }
+
+  const services = {
+    [Companies.OpenAI]: createChatCompletionByOpenAI,
+    [Companies.Anthropic]: createChatCompletionByAnthropic,
+    [Companies.Google]: createChatCompletionByGoogle
+  }
+
+  return services[company]
 }
 
 export default useChatCompletion

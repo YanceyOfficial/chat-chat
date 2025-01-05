@@ -1,7 +1,7 @@
 import Backdrop from '@mui/material/Backdrop'
 import Typography from '@mui/material/Typography'
 import { FC } from 'react'
-import LogoImg from 'src/assets/chatbot.png'
+import HyperChatLogo from 'src/assets/images/logo.png'
 
 const Loading: FC = () => {
   return (
@@ -10,7 +10,11 @@ const Loading: FC = () => {
       sx={{ background: 'rgba(0, 0, 0, .9)' }}
       open
     >
-      <img src={LogoImg} alt="" className="mb-4 h-32 w-32 animate-bounce" />
+      <img
+        src={HyperChatLogo}
+        alt=""
+        className="mb-4 h-32 w-32 animate-bounce"
+      />
       <Typography
         variant="h3"
         className="brand animate-wiggle text-6xl text-white"

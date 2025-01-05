@@ -2,7 +2,7 @@ import classNames from 'classnames'
 import { FC } from 'react'
 import { SvgIconProps } from 'src/types/global'
 
-const OpenAILogoIcon: FC<SvgIconProps> = ({
+const OpenAiLogoIcon: FC<SvgIconProps> = ({
   className,
   pathClassName,
   onClick
@@ -29,4 +29,4 @@ const OpenAILogoIcon: FC<SvgIconProps> = ({
   </svg>
 )
 
-export default OpenAILogoIcon
+export default OpenAiLogoIcon

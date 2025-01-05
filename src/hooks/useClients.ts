@@ -1,10 +1,11 @@
-import { AzureKeyCredential, OpenAIClient } from '@azure/openai'
-import * as azureSpeechSDK from 'microsoft-cognitiveservices-speech-sdk'
+import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { useAtomValue } from 'jotai'
 import { OpenAI } from 'openai'
-import { useSettings } from 'src/hooks'
+import { settingsAtom } from 'src/stores/global'
 
 const useClients = () => {
-  const { settings } = useSettings()
+  const settings = useAtomValue(settingsAtom)
 
   const openAiClient = new OpenAI({
     apiKey: settings?.openaiSecretKey || '',
@@ -12,18 +13,20 @@ const useClients = () => {
     dangerouslyAllowBrowser: true
   })
 
-  const azureClient = new OpenAIClient(
-    settings?.azureEndPoint || 'DEFAULT',
-    new AzureKeyCredential(settings?.azureSecretKey || 'DEFAULT')
+  const googleClient = new GoogleGenerativeAI(
+    settings?.googleSecretKey || 'DEFAULT'
   )
 
-  const speechConfig = azureSpeechSDK.SpeechConfig.fromSubscription(
-    settings?.azureSpeechSecretKey || 'DEFAULT',
-    settings?.azureSpeechRegion || 'DEFAULT'
-  )
-  const azureSpeechClient = new azureSpeechSDK.SpeechSynthesizer(speechConfig)
+  const anthropicClient = new Anthropic({
+    apiKey: settings?.anthropicSecretKey || 'DEFAULT',
+    dangerouslyAllowBrowser: true
+  })
 
-  return { openAiClient, azureClient, azureSpeechClient }
+  return {
+    openAiClient,
+    googleClient,
+    anthropicClient
+  }
 }
 
 export default useClients

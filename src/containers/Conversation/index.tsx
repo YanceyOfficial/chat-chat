@@ -1,45 +1,48 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useAtom, useAtomValue } from 'jotai'
 import { FC, useEffect } from 'react'
-import { useRecoilState, useRecoilValue } from 'recoil'
 import ChatBox from 'src/components/ChatBox'
+import Configuration from 'src/components/Configuration'
 import ConversationList from 'src/components/ConversationList'
 import Divider from 'src/components/Divider'
-import Loading from 'src/components/Loading'
-import { configurations } from 'src/configurations'
-import { useDB } from 'src/hooks'
-import { currConversationState } from 'src/stores/conversation'
-import { currProductState } from 'src/stores/global'
+import { db } from 'src/db'
+import { conversationAtom } from 'src/stores/conversation'
+import { companyAtom } from 'src/stores/global'
 import { Conversation as IConversation } from 'src/types/conversation'
 
 const Conversation: FC = () => {
-  const currProduct = useRecoilValue(currProductState)
-  const { getConversationByProduct } = useDB('conversations')
+  const [conversation, setConversation] = useAtom(conversationAtom)
+  const company = useAtomValue(companyAtom)
   const conversations = useLiveQuery<IConversation[]>(
-    getConversationByProduct as () => Promise<IConversation[]>,
-    [currProduct]
+    () =>
+      db
+        .table('conversations')
+        .where('company')
+        .equals(company)
+        .reverse()
+        .sortBy('updatedAt'),
+    [company]
   )
-  const [currConversation, setCurrConversation] = useRecoilState(
-    currConversationState
-  )
-  const Configuration = configurations[currProduct].component()
 
   useEffect(() => {
     if (
-      conversations &&
-      currProduct &&
-      conversations[0]?.conversationId !== currConversation?.conversationId
+      // Initializing App
+      !conversation ||
+      // Switching company
+      conversation?.company !== company ||
+      // Deleting a conversation
+      conversations.findIndex((c) => c.id === conversation.id) === -1
     ) {
-      setCurrConversation(conversations[0])
+      setConversation(conversations?.[0])
     }
-  }, [conversations, currProduct])
-
-  if (!conversations) return <Loading />
+  }, [conversation, conversations, company, setConversation])
 
   return (
     <>
       <ConversationList conversations={conversations} />
       <Divider direction="vertical" />
       <ChatBox />
+      <Divider direction="vertical" />
       <Configuration />
     </>
   )

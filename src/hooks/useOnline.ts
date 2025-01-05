@@ -1,9 +1,9 @@
+import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
-import { useSetRecoilState } from 'recoil'
-import { onlineState } from 'src/stores/global'
+import { onlineAtom } from 'src/stores/global'
 
 const useOnline = () => {
-  const setOnline = useSetRecoilState(onlineState)
+  const setOnline = useSetAtom(onlineAtom)
 
   useEffect(() => {
     function handleOnlineStatus() {

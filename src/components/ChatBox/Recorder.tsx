@@ -1,21 +1,21 @@
 import { Player } from '@lottiefiles/react-lottie-player'
 import classNames from 'classnames'
+import { useAtom, useAtomValue } from 'jotai'
 import { enqueueSnackbar } from 'notistack'
 import { FC, useRef, useState } from 'react'
-import { useRecoilState, useRecoilValue } from 'recoil'
 import RecorderJSON from 'src/assets/lotties/recorder.json'
-import { useClients } from 'src/hooks'
-import { userInputState } from 'src/stores/conversation'
-import { settingsState } from 'src/stores/settings'
+import { useSTT } from 'src/hooks'
+import { inputTextAtom } from 'src/stores/conversation'
+import { settingsAtom } from 'src/stores/global'
 
 interface Props {
   className?: string
 }
 
 const AudioRecorder: FC<Props> = ({ className }) => {
-  const settings = useRecoilValue(settingsState)
-  const { azureClient } = useClients()
-  const [userInput, setUserInput] = useRecoilState(userInputState)
+  const settings = useAtomValue(settingsAtom)
+  const createSTT = useSTT()
+  const [inputText, setInputText] = useAtom(inputTextAtom)
   const [isRecording, setIsRecording] = useState(false)
   // const [audioUrl, setAudioUrl] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -35,19 +35,17 @@ const AudioRecorder: FC<Props> = ({ className }) => {
         audioChunksRef.current.push(event.data)
       }
       mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: 'audio/mp3'
-        })
-        const uint8Array = new Uint8Array(await audioBlob.arrayBuffer())
-        const transcription = await azureClient.getAudioTranscription(
-          settings.azureDeploymentNameAudioGeneration,
-          uint8Array
-        )
-        setUserInput(`${userInput}${transcription.text}`)
-
-        // const audioUrl = URL.createObjectURL(audioBlob)
-        // setAudioUrl(audioUrl)
+        const transcriptionText = await createSTT(audioChunksRef.current)
+        setInputText(`${inputText}${transcriptionText}`)
         audioChunksRef.current = []
+
+        // setAudioUrl(
+        //   URL.createObjectURL(
+        //     new Blob(audioChunksRef.current, {
+        //       type: 'audio/mp3'
+        //     })
+        //   )
+        // )
       }
     } catch (error) {
       enqueueSnackbar('Error accessing media devices.', { variant: 'error' })
@@ -75,13 +73,14 @@ const AudioRecorder: FC<Props> = ({ className }) => {
       />
 
       {/* {
-      // the audio preview is just for test.
-      audioUrl && (
-        <audio controls>
-          <source src={audioUrl} type="audio/mp3" />
-          Your browser does not support the audio element.
-        </audio>
-      )} */}
+        // the audio preview is just for test.
+        audioUrl && (
+          <audio controls>
+            <source src={audioUrl} type="audio/mp3" />
+            Your browser does not support the audio element.
+          </audio>
+        )
+      } */}
     </section>
   )
 }

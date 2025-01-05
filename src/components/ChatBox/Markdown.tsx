@@ -1,153 +1,59 @@
-import classNames from 'classnames'
-import { FC, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark as mdCodeTheme } from 'react-syntax-highlighter/dist/esm/styles/prism'
-// @ts-ignore
-import rehypeMathjax from 'rehype-mathjax'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
+import { Marked, Renderer, Tokens } from 'marked'
+import markedKatex from 'marked-katex-extension'
+import { FC, memo, useCallback } from 'react'
 
 interface Props {
-  raw: string
+  src: string
 }
 
-const Markdown: FC<Props> = ({ raw }) => {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeMathjax]}
-      components={{
-        code({ className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || '')
-          return match ? (
-            <SyntaxHighlighter
-              style={mdCodeTheme}
-              language={match[1]}
-              PreTag="div"
-              customStyle={{ borderRadius: 0, margin: 0 }}
-            >
-              {String(children).replace(/\n$/, '')}
-            </SyntaxHighlighter>
-          ) : (
-            <code className={classNames('font-semibold', className)}>
-              `{children}`
-            </code>
-          )
-        },
-        p({ className, children, ...props }) {
-          return (
-            <p
-              className={classNames(
-                'mb-3 whitespace-pre-wrap break-words last:mb-0',
-                className
-              )}
-            >
-              {children}
-            </p>
-          )
-        },
-        pre({ className, children, ...props }) {
-          return (
-            <pre
-              className={classNames(
-                '-mx-4 my-3 overflow-x-scroll text-xs last:my-0',
-                className
-              )}
-            >
-              {children}
-            </pre>
-          )
-        },
-        ol({ className, children, ...props }) {
-          return (
-            <ol
-              className={classNames('mb-3 list-disc pl-3 last:mb-0', className)}
-              {...props}
-            >
-              {children}
-            </ol>
-          )
-        },
-        ul({ className, children, ...props }) {
-          return (
-            <ul
-              className={classNames(
-                'mb-3 list-decimal pl-3 last:mb-0',
-                className
-              )}
-              {...props}
-            >
-              {children}
-            </ul>
-          )
-        },
-        li({ className, children, ...props }) {
-          return (
-            <li className={classNames('mb-3 last:mb-0', className)} {...props}>
-              {children}
-            </li>
-          )
-        },
-        img({ className, children, ...props }) {
-          return <img {...props} loading="lazy" />
-        },
-        a({ className, children, ...props }) {
-          return (
-            <a
-              {...props}
-              rel="noopener noreferrer"
-              target="_blank"
-              className={classNames('font-bold underline', className)}
-            >
-              {children}
-            </a>
-          )
-        },
-        table({ className, children, ...props }) {
-          return (
-            <table
-              className={classNames(
-                'table-fixed border border-gray-500',
-                className
-              )}
-            >
-              {children}
-            </table>
-          )
-        },
-        th({ className, children, ...props }) {
-          return (
-            <th
-              className={classNames(
-                'whitespace-nowrap border border-gray-500 p-2 dark:border-gray-200',
-                className
-              )}
-            >
-              {children}
-            </th>
-          )
-        },
-        td({ className, children, ...props }) {
-          return (
-            <td
-              className={classNames(
-                'whitespace-nowrap border border-gray-500 p-2 dark:border-gray-200',
-                className
-              )}
-            >
-              {children}
-            </td>
-          )
+const Markdown: FC<Props> = ({ src }) => {
+  const parseMarkdown = useCallback(() => {
+    const renderer = new Renderer()
+
+    renderer.code = ({ text, lang }: Tokens.Code) => {
+      const language = (lang && lang.split(/\s/)[0]) ?? 'javascript'
+
+      const highlighted =
+        language && hljs.getLanguage(language)
+          ? hljs.highlight(text, { language: language }).value
+          : hljs.highlightAuto(text).value
+
+      return `<pre class="-mx-4 my-3 overflow-x-scroll text-xs last:my-0"><code class="hljs ${language}">${highlighted}</code></pre>`
+    }
+
+    renderer.codespan = ({ text }: Tokens.Codespan) =>
+      `<code class="p-0.5 bg-slate-300 rounded-md dark:bg-slate-600">${text}</code>`
+
+    renderer.image = ({ text, href }: Tokens.Image) => {
+      return `<img src="${href}" alt="${text}" class="mb-3" loading="lazy" />`
+    }
+
+    renderer.link = ({ href, text }: Tokens.Link) => {
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="font-bold underline">${text}</a>`
+    }
+
+    const marked = new Marked({
+      renderer: {
+        ...renderer,
+        table(...args) {
+          return `<div class="overflow-x-scroll">${renderer.table.apply(this, args)}</div>`
         }
-      }}
-    >
-      {raw}
-    </ReactMarkdown>
+      }
+    })
+
+    marked.use(markedKatex())
+
+    return marked.parse(src)
+  }, [src])
+
+  return (
+    <section
+      className="markdown"
+      dangerouslySetInnerHTML={{ __html: parseMarkdown() }}
+    />
   )
 }
 
-export default memo(
-  Markdown,
-  (prevProps, nextProps) => prevProps.raw === nextProps.raw
-)
+export default memo(Markdown)

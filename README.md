@@ -36,25 +36,19 @@ As Hyper Chat is not planning to be released on the App Store, you may encounter
 
 ### Prerequisites
 
-We have chosen [Tauri](https://tauri.app/) as our cross-platform base. Please make sure that [Rust](https://www.rust-lang.org/) is installed on your system.
-
-Then, to install Tauri CLI globally, please follow the tutorial on [create-tauri-app](https://github.com/tauri-apps/create-tauri-app). We recommend using `cargo install tauri-cli`.
-
-Additionally, we use [React](https://react.dev/) + [Vite](https://vitejs.dev/) for rendering and packaging pages, so please install [Node.js](https://nodejs.org/en) and [pnpm](https://pnpm.io/) globally in advance.
+We have chosen [Electron Forge](https://www.electronforge.io/) as our cross-platform base and use [React](https://react.dev/) + [Vite](https://vitejs.dev/) for rendering and packaging pages, so please install [Node.js](https://nodejs.org/en) globally in advance.
 
 ### Recommended IDE Setup
 
 - [VS Code](https://code.visualstudio.com/)
-- [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 - [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
 - [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)
 - [Eslint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
 
 ### Available Scripts
 
-- To start tauri development window, you can execute `cargo tauri dev`.
-- To build the bundle, you can execute `cargo tauri build`.
+- To start development window, you can execute `npm run start`.
+- To build the bundle, you can execute `npm run make`.
 
 ## Contributing
 

@@ -1,20 +1,15 @@
-import { useRecoilValue } from 'recoil'
 import { db } from 'src/db'
-import { currProductState } from 'src/stores/global'
-import { Conversation } from 'src/types/conversation'
 
 const useDB = (tableName: string) => {
-  const currProduct = useRecoilValue(currProductState)
-
   const deleteOneById = async (id: string) => {
     try {
-      const x = await db.table(tableName).delete(id)
+      await db.table(tableName).delete(id)
     } catch {}
   }
 
   const toArray = async <T>() => {
     try {
-      const array = (await db.table(tableName).toArray()) as T
+      const array: T[] = await db.table(tableName).toArray()
       return array
     } catch {}
   }
@@ -25,7 +20,7 @@ const useDB = (tableName: string) => {
     } catch {}
   }
 
-  const insertOne = async (data: any) => {
+  const insertOne = async <T>(data: T) => {
     try {
       await db.table(tableName).add(data)
     } catch {}
@@ -38,20 +33,7 @@ const useDB = (tableName: string) => {
     } catch {}
   }
 
-  const getConversationByProduct = async () => {
-    try {
-      const conversation: Conversation[] = await db
-        .table(tableName)
-        .where({ product: currProduct })
-        .sortBy('updatedAt')
-      conversation.reverse()
-
-      return conversation
-    } catch {}
-  }
-
   return {
-    getConversationByProduct,
     deleteOneById,
     toArray,
     updateOneById,
